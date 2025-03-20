@@ -1,0 +1,7 @@
+name = "ECHOBrainFR2025"
+uuid = "31c44879-23f5-4b08-ba30-58caef3f777f"
+authors = ["Guilherme Fahur Bottino <gfahurbottino@gmail.com> and contributors"]
+version = "0.0.1-PREALPHA"
+
+[compat]
+julia = "1.11"
