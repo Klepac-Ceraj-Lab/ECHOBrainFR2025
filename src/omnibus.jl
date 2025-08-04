@@ -41,7 +41,7 @@ function plot_permanovas!(ax, pdf; commlabels=unique(pdf.label), mdlabels=unique
     vmat = mapreduce(df-> df.varexpl, hcat, pgrp)
     pmat = mapreduce(df-> df.pvalue, hcat, pgrp)
     
-    hm = heatmap!(ax, vmat'; colormap, colorrange)
+    hm = CairoMakie.heatmap!(ax, vmat'; colormap, colorrange)
 
     for ci in CartesianIndices(pmat)
         c = vmat[ci] < (colorrange[2] - colorrange[1]) / 2 ? :black : :lightgray

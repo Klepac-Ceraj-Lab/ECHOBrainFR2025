@@ -4,6 +4,7 @@
 
 using CSV, DataFrames, Chain
 using CategoricalArrays
+using StatsBase
 
 # metdata_xf_path = joinpath("data", "2025-03-14-BrainFRCompleteMetadata.xlsx")
 # metadata_xf = XLSX.readxlsx(metdata_xf_path)
@@ -13,6 +14,17 @@ using CategoricalArrays
 ## Sigh... type comes back as Any if we do this... converting to CSV and moving on...
 
 function load_brain_data()
+
+    function assign_bins(x)
+        if x < 5.0
+            return(1)
+        elseif x < 10.0
+            return(2)
+        else
+            return(3)
+        end
+    end
+
     ## Load and process FR metadata
     metadata_df_raw = CSV.read(joinpath("data", "2025-03-14-BrainFRCompleteMetadata.csv"), DataFrame; stringtype = String)
     metadata_df = @chain metadata_df_raw begin
@@ -35,6 +47,7 @@ function load_brain_data()
         DataFrames.transform!(:fr_score => (x -> parse.(Float64, x)) => :fr_score)
         DataFrames.transform!(:sex => (x -> CategoricalArray(x, ordered = false)) => :sex)
         DataFrames.transform!(:mom_edu_cat => (x -> CategoricalArray(x, ordered = true)) => :mom_edu_cat)
+        DataFrames.transform!(:fr_score_age_years => (x -> assign_bins.(x)) => :agebin)
         unique([:studyID, :timepoint])
     end
 
@@ -66,9 +79,6 @@ function load_brain_data()
     )
 
     joined_input_data = @chain joined_data begin
-        sort([:studyID, :timepoint]; rev=true) ## This makes the code pick up the latest timepoint
-        # sort([:studyID, :timepoint]) ## This makes the code pick up the earliest timepoint
-        unique(:studyID)
         DataFrames.transform([:studyID, :timepoint] => ( (x,y) -> ["$(el[1])-$(el[2])" for el in zip(x,y)]) => :UID; renamecols = false)
     end
 
@@ -77,20 +87,60 @@ function load_brain_data()
     ##########################################
 
     exclude_ids = [ 925, 768, 259]
-    excluded_input_data = subset(joined_input_data, :studyID => x -> x .∈ Ref(exclude_ids))
-
+    # excluded_input_data = subset(joined_input_data, :studyID => x -> x .∈ Ref(exclude_ids))
     filtered_input_data = subset(joined_input_data, :studyID => x -> x .∉ Ref(exclude_ids))
 
-    input_brain =  @chain filtered_input_data begin
+    lastp_input_data = @chain filtered_input_data begin
+        sort([:studyID, :timepoint]; rev=true) ## This makes the code pick up the latest timepoint
+        # sort([:studyID, :timepoint]) ## This makes the code pick up the earliest timepoint
+        unique(:studyID)        
+    end
+
+    lastp_datapoint_counts = StatsBase.countmap(lastp_input_data.agebin)
+    lastp_datapoint_props = StatsBase.proportionmap(lastp_input_data.agebin)
+
+    println(
+        "Using only hte latest TP Per Participant,
+        bin 1 has $(lastp_datapoint_counts[1]) ($(lastp_datapoint_props[1])),
+        bin 2 has $(lastp_datapoint_counts[2]) ($(lastp_datapoint_props[2])),
+        bin 3 has $(lastp_datapoint_counts[3]) ($(lastp_datapoint_props[3]))
+    ")
+
+    expanded_input_data = @chain filtered_input_data begin
+        sort([:studyID, :timepoint, :agebin]; rev=true)
+        combine(first, groupby( _ , [:studyID, :agebin]))
+    end
+
+    expanded_datapoint_counts = StatsBase.countmap(expanded_input_data.agebin)
+    expanded_datapoint_props = StatsBase.proportionmap(expanded_input_data.agebin)
+
+    println(
+        "Using only the latest TP Per Bin (1,2,3 - allow repetitions in different bins),
+        bin 1 has $(expanded_datapoint_counts[1]) ($(expanded_datapoint_props[1])),
+        bin 2 has $(expanded_datapoint_counts[2]) ($(expanded_datapoint_props[2])),
+        bin 3 has $(expanded_datapoint_counts[3]) ($(expanded_datapoint_props[3]))
+    ")
+
+    input_brain_lastp =  @chain lastp_input_data begin
         select( "UID", ordered_brain_names)
         rename(ordered_brain_renamepairs)
     end
     
-    input_mdata = @chain filtered_input_data begin
+    input_mdata_lastp = @chain lastp_input_data begin
         select(:UID, :)
         select(Not(ordered_brain_names))
     end
 
-    return(input_mdata, input_brain)
+    input_brain_expanded =  @chain expanded_input_data begin
+        select( "UID", ordered_brain_names)
+        rename(ordered_brain_renamepairs)
+    end
+    
+    input_mdata_expanded = @chain expanded_input_data begin
+        select(:UID, :)
+        select(Not(ordered_brain_names))
+    end
+
+    return(input_mdata_lastp, input_brain_lastp, input_mdata_expanded, input_brain_expanded)
 
 end

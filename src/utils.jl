@@ -1,4 +1,5 @@
 using Statistics
+using Distributions
 
 function robust_geometric_mean_nonzero(
     x::T where T <: Vector{Float64}
@@ -330,4 +331,19 @@ function rangenormalize(vv)
 
     vv = ( vv .- this_min ) ./ (this_max - this_min)
     return vv
+end
+
+"""
+    pearson_pvalue(R::Float64, N::Int)
+
+Compute the two-tailed p-value for a Pearson correlation coefficient R with sample size N.
+"""
+function pearson_pvalue(R::Float64, N::Int)
+    @assert -1 ≤ R ≤ 1 "R must be between -1 and 1"
+    @assert N > 2 "Sample size must be greater than 2"
+
+    df = N - 2
+    t = abs(R) * sqrt(df / (1 - R^2))
+    p = 2 * (1 - cdf(TDist(df), t))
+    return p
 end

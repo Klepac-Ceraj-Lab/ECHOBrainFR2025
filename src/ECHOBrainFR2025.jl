@@ -1,11 +1,13 @@
 module ECHOBrainFR2025
 
-    include("load_data.jl")
-    include("learning.jl")
-    include("utils.jl")
+    using CairoMakie
+    using PERMANOVA
+    using JLD2
 
+    include("load_data.jl")
     export load_brain_data
 
+    include("learning.jl")
     export CVResults
     export partitionvec
     export run_cv_workflow
@@ -19,8 +21,17 @@ module ECHOBrainFR2025
     export report_regression_merits
     export hpimportances
     export force_continuous
+    export perform_ML_cals
 
+    include("utils.jl")
     export robust_geometric_mean_nonzero, rclr_vector
     export autonormalize, rangenormalize
     export ordered_brain_names, ordered_brain_renamepairs, ordered_brain_newnames
+    export pearson_pvalue
+
+    include("omnibus.jl")
+    export permanovas
+    export varexpl, pvalue
+    export plot_permanovas, plot_permanovas!
+
 end
