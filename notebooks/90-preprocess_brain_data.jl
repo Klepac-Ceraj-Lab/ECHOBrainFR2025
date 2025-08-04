@@ -1,8 +1,8 @@
 ## Preprocessing brain
 input_brain = @chain input_brain_raw begin
     DataFrames.transform( _ , ordered_brain_newnames .=> (y -> y ./ _.total_intracranial) .=> ordered_brain_newnames; renamecols=false)
-    # DataFrames.transform( _ , ordered_brain_newnames .=> (y -> y ./ _.total_intracranial) .=> ordered_brain_newnames; renamecols=false)
-    # DataFrames.transform( ordered_brain_newnames .=> (y -> autonormalize(y) ) .=> ordered_brain_newnames; renamecols=false)
+    # DataFrames.transform( ordered_brain_newnames .=> (y -> autonormalize(y) ) .=> ordered_brain_newnames; renamecols=false) ## Toggle off z-normalization
+    DataFrames.transform( ordered_brain_newnames .=> (y -> 100 .* y ) .=> ordered_brain_newnames; renamecols=false) ## Toggle convert to pct
     select("UID", ordered_brain_newnames)
 end
 
@@ -14,14 +14,14 @@ end
 
 final_inputs = @chain input_mdata begin 
     innerjoin(input_brain, on = :UID)
-    select(["UID", "studyID", "timepoint", "fr_score", "zBMI", "mom_edu_cat", "sex", "fr_score_age_years" ], ordered_brain_newnames)
+    select(["UID", "studyID", "timepoint", "agebin", "fr_score", "zBMI", "mom_edu_cat", "sex", "fr_score_age_years" ], ordered_brain_newnames)
     transform!(:sex => ( x -> levelcode.(x) ) => :sex)
     transform!(:mom_edu_cat => ( x -> levelcode.(x) ) => :mom_edu_cat)
 end
 
 final_inputs_rclr = @chain input_mdata begin 
     innerjoin(input_brain_rclr, on = :UID)
-    select(["UID", "studyID", "timepoint", "fr_score", "zBMI", "mom_edu_cat", "sex", "fr_score_age_years" ], ordered_brain_newnames)
+    select(["UID", "studyID", "timepoint", "agebin", "fr_score", "zBMI", "mom_edu_cat", "sex", "fr_score_age_years" ], ordered_brain_newnames)
     transform!(:sex => ( x -> levelcode.(x) ) => :sex)
     transform!(:mom_edu_cat => ( x -> levelcode.(x) ) => :mom_edu_cat)
 end

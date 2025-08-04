@@ -22,23 +22,22 @@ using PERMANOVA
 using ECHOBrainFR2025
 
 ## Loading Data
-input_mdata, input_brain_raw = load_brain_data()
+input_mdata, input_brain_raw, _, _ = load_brain_data()
 include("notebooks/90-preprocess_brain_data.jl")
-
+sort!(final_inputs, :UID)
+sort!(final_inputs_rclr, :UID)
 #####
 # Creating Figure 1
 #####
 
 fig = Figure( size = (1600, 1000))
 
-AB_Subfig = GridLayout(fig[1,1]; alignmomde = Outside())
-A_Subfig = GridLayout(AB_Subfig[1,1]; alignmomde = Outside())
-B_Subfig = GridLayout(AB_Subfig[1,2]; alignmomde = Outside())
-
-CDE_Subfig = GridLayout(fig[2,1]; alignmomde = Outside())
-C_Subfig = GridLayout(CDE_Subfig[1,1]; alignmomde = Outside())
-D_Subfig = GridLayout(CDE_Subfig[1,2]; alignmomde = Outside())
-E_Subfig = GridLayout(CDE_Subfig[1,3]; alignmomde = Outside())
+A_Subfig = GridLayout(fig[1,1]; alignmomde = Outside())
+BCD_Subfig = GridLayout(fig[2,1]; alignmomde = Outside())
+B_Subfig = GridLayout(BCD_Subfig[1,1]; alignmomde = Outside())
+C_Subfig = GridLayout(BCD_Subfig[1,2]; alignmomde = Outside())
+D_Subfig = GridLayout(BCD_Subfig[1,3]; alignmomde = Outside())
+EFG_Subfig = GridLayout(fig[3,1]; alignmomde = Outside())
 
 age_bins = collect(1:1:15)
 age_cmap = :cividis
@@ -153,8 +152,9 @@ cbar_age = Colorbar( A_Subfig[3,2], hm_age, vertical = true)
 cbar_sex = Colorbar( A_Subfig[4,2], hm_sex, vertical = true)
 cbar_edu = Colorbar( A_Subfig[5,2], hm_edu, vertical = true)
 
-cbar_bmi.ticks = ([-2.5, 0.0, 2.5, 5.0], ["-2.5", "0.0", "2.5", "5.0"])
-cbar_age.ticks = ([1,3,5,7,9,11,13,15], ["1","3","5","7","9","11","13","15"])
+cbar_fr.ticks = ([1,3,5], ["1", "3", "5"])
+cbar_bmi.ticks = ([-2.0, 0.0, 2.0, 4.0], ["-2", "0", "2", "4"])
+cbar_age.ticks = ([3,8.5,14], ["3", "8.5", "14"])
 cbar_sex.ticks = ([1.25, 1.75], ["Male", "Female"])
 cbar_edu.ticks = ([1.25, 1.75], ["Yes", "No"])
 
@@ -203,6 +203,16 @@ sc = scatter!(
     colormap = :seismic,
     marker = [ ( (el == 1) ? (:rect) : (:utriangle) ) for el in final_inputs.mom_edu_cat ], # 1 is circle, 2 is rectangle
     markersize = [ log2(2*el)^2 for el in final_inputs.fr_score_age_years ]
+)
+
+r_bmi_fr = round(cor(final_inputs.fr_score, final_inputs.zBMI), digits = 3)
+r_bmi_p = round(pearson_pvalue(r_bmi_fr, nrow(final_inputs)), digits = 6)
+
+annotations!(
+    AxMSCScatter,
+    [ "R = $(r_bmi_fr), p = $(r_bmi_p)" ],
+    [ Point(2.75, -2.5) ],
+    color = :black
 )
 
 hstp = hist!(
@@ -274,40 +284,61 @@ rowsize!(B_Subfig, 1, Relative(0.3))
 colsize!(B_Subfig, 2, Relative(0.3))
 
 #####
-# Panel C/D - MDS decomposition
+# Panel C - Correlogram
+#####
+
+cor_vars = [:fr_score, :zBMI, :fr_score_age_years, :sex, :mom_edu_cat]
+cor_data = select(final_inputs, cor_vars)
+
+# Compute correlation matrix
+corr_matrix = pairwise(cor, eachcol(cor_data))
+# corr_matrix = cor(Matrix(data))
+
+for i in 1:size(corr_matrix, 1)
+    for j in i:size(corr_matrix, 2)
+        corr_matrix[i, j] = NaN
+    end
+end
+
+corr_matrix = corr_matrix[2:end, 1:end-1]
+
+# Plot correlogram
+axCorr = Axis(
+    C_Subfig[1,1],
+    xticks = (1:4, ["FR score", "zBMI", "age", "sex"]),
+    yticks = (1:4, ["zBMI", "age", "sex", "Maternal\nEducation"]),
+    aspect = 1,
+    yreversed = true
+)
+
+corr_bins = collect(-1.0:0.1:1.0)
+corr_cmap = :coolwarm
+corr_cgrad = cgrad(corr_cmap, corr_bins, categorical=false, rev=false)
+
+hm_corr = heatmap!(
+    axCorr,
+    corr_matrix',
+    colormap = corr_cgrad,  # diverging color map
+    colorrange = (-1, 1)
+)
+
+cbar_fr = Colorbar( C_Subfig[1,2], hm_corr, vertical = true)
+
+for ci in CartesianIndices(corr_matrix)
+    !isnan(corr_matrix[ci]) && text!(axCorr, string(round(corr_matrix[ci], digits=3)); position=(ci[2],ci[1]), align=(:center, :center))
+end
+
+#####
+# Panel D - PERMANOVAs
 #####
 
 include("notebooks/02S-FigureS1.jl")
 
-AxC_sc1 = Axis(
-    C_Subfig[1,1],
-    title="Manhattan Distances",
-    aspect = 1,
-    xlabel="MDS Dimension 1", ylabel="MDS Dimension 2")
-sc1 = scatter!(
-    AxC_sc1, manhattan_MDS_results.U[:, 1], manhattan_MDS_results.U[:, 2],
-    color = final_inputs.fr_score_age_years,
-    colormap = age_cgrad)
-
-AxD_sc2 = Axis(
-    D_Subfig[1,1],
-    title="Manhattan Distances",
-    aspect = 1,
-    xlabel="MDS Dimension 1", ylabel="MDS Dimension 2")
-sc2 = scatter!(
-    AxD_sc2, manhattan_MDS_results.U[:, 1], manhattan_MDS_results.U[:, 2],
-    color = final_inputs.fr_score,
-    colormap = fr_cgrad)
-
-# #####
-# # Panel E - PERMANOVAs
-# #####
-
-commlabels = ["Brain\n(Manhattan)", "Brain\n(Correlation)"]
+commlabels = ["Brain\n(Manhattan)", "Brain\n(Correlation)", "Brain\n(rCLR-Euclidean)"]
 mdlabels = [ "FR Score", "zBMI", "Age", "Sex", "Maternal\nEducation"]
 
 pmn_all = permanovas(
-    [ manhattan_dist, correlation_dist ],
+    [ manhattan_dist, correlation_dist, euclidean_dist ],
     [
         final_inputs.fr_score,
         final_inputs.zBMI,
@@ -315,7 +346,7 @@ pmn_all = permanovas(
         final_inputs.sex,
         final_inputs.mom_edu_cat,
     ];
-    n = 1000,
+    n = 10000,
     commlabels = commlabels,
     mdlabels = mdlabels
 )
@@ -346,7 +377,7 @@ pmn_all = permanovas(
 # )
 
 PmnAx = Axis(
-    E_Subfig[1, 1];
+    D_Subfig[1, 1];
     xlabel = "Distance Type",
     ylabel = "Metadatum",
     xticklabelsize = 16,
@@ -355,6 +386,47 @@ PmnAx = Axis(
 )
 
 plot_permanovas!(PmnAx, pmn_all)
+
+######
+# Layout
+######
+
+rowsize!(fig.layout, 1, Relative(0.2))
+rowsize!(fig.layout, 2, Relative(0.4))
+rowsize!(fig.layout, 3, Relative(0.4))
+rowgap!(A_Subfig, Relative(0.025))
+colsize!(BCD_Subfig, 1, Relative(0.4))
+colsize!(BCD_Subfig, 2, Relative(0.3))
+colsize!(BCD_Subfig, 3, Relative(0.3))
+
+#####
+# Panel E/F/G - MDS colorby
+#####
+
+AxC_sc1 = Axis(
+    C_Subfig[1,1],
+    title="Manhattan Distances",
+    aspect = 1,
+    xlabel="MDS Dimension 1", ylabel="MDS Dimension 2")
+sc1 = scatter!(
+    AxC_sc1, manhattan_MDS_results.U[:, 1], manhattan_MDS_results.U[:, 2],
+    color = final_inputs.fr_score_age_years,
+    colormap = age_cgrad)
+
+AxD_sc2 = Axis(
+    D_Subfig[1,1],
+    title="Manhattan Distances",
+    aspect = 1,
+    xlabel="MDS Dimension 1", ylabel="MDS Dimension 2")
+sc2 = scatter!(
+    AxD_sc2, manhattan_MDS_results.U[:, 1], manhattan_MDS_results.U[:, 2],
+    color = final_inputs.fr_score,
+    colormap = fr_cgrad)
+
+
+
+
+
 
 ## Saving Figure 01
 fig

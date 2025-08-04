@@ -13,21 +13,13 @@ dist_data_standardized = (dist_data_matrix .- mean(dist_data_matrix, dims=1)) ./
 manhattan_dist = pairwise(Distances.Cityblock(), dist_data_standardized; dims = 1)
 correlation_dist = pairwise(Distances.CorrDist(), dist_data_standardized; dims = 1)
 
-Σinv_maha = pinv(cov(dist_data_standardized; corrected=true, dims = 1))
-mahalanobis_dist = pairwise(Distances.Mahalanobis(Σinv_maha), permutedims(dist_data_standardized);)
-
-# manhattan_dist = pairwise(Distances.Cityblock(), dist_data_standardized; dims = 1)
-# mahalanobis_dist = pairwise(Distances.Mahalanobis(), dist_data_standardized; dims = 1)
-# manhattan_dist = pairwise(Distances.CorrDist(), dist_data_standardized; dims = 1)
+rclr_data_matrix = Matrix(final_inputs[:,9:end])
+euclidean_dist = pairwise(Distances.Euclidean(), rclr_data_matrix; dims = 1)
 
 # Apply MDS for ordination
 manhattan_MDS_results = fit(MDS, manhattan_dist; maxoutdim = 10, distances=true)
-mahalanobis_MDS_results = fit(MDS, mahalanobis_dist; maxoutdim = 10, distances=true)
 correlation_MDS_results = fit(MDS, correlation_dist; maxoutdim = 10, distances=true)
-
-# manhattan_MDS_results = fit(MetricMDS, manhattan_dist; maxoutdim = 2, distances=true)
-# mahalanobis_MDS_results = fit(MetricMDS, mahalanobis_dist.qmat; maxiter = 1000, maxoutdim = 2, distances=true)
-# correlation_MDS_results = fit(MetricMDS, correlation_dist; maxoutdim = 2, distances=true)
+euclidean_MDS_results = fit(MDS, euclidean_dist; maxoutdim = 10, distances=true)
 
 sfig = Figure(size = (1400,1000))
 
